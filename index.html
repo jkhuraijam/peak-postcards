@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Peak Postcards</title>
+<meta name="description" content="Turn your GPS tracks into printable 3D postcards: every hike, run, ride, ski day or paddle, plus a card for each New Hampshire 4,000-footer you've climbed. Runs in your browser; your files never leave your computer.">
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style id="pageSize">@page{size:6in 4in;margin:0}</style>
+</head>
+<body>
+
+<main id="landing" hidden>
+ <div class="hero">
+  <a href="#" id="landingBack" class="back" hidden>← Back home</a>
+  <div class="kicker">HIKES · RUNS · RIDES · SKI DAYS · THE NH 48</div>
+  <h1>Your adventures, as postcards</h1>
+  <p class="lead">Drop in your GPS tracks and every hike, run, ride, ski day or paddle becomes a postcard ready to print:
+   3D terrain where it climbed, snow when it was winter, a clean 2D map where it was flat, with the elevation profile
+   and the peaks you summited. Working on the New Hampshire 48? We also find every 4,000-footer you stood on and the
+   dates you were there, with a postcard for each peak and one card with all 48.</p>
+
+  <label id="drop" tabindex="0">
+   <input type="file" id="files" multiple accept=".zip,.gpx,.fit,.tcx,.gz">
+   <div class="dropIcon">⛰</div>
+   <b>Drop your Strava export (.zip) or GPX / FIT / TCX files</b>
+   <span>or click to choose · folders of tracks work too</span>
+  </label>
+  <label class="opt"><input type="checkbox" id="titleRule"> For the 48, only count activities whose name or description mentions a 4K peak, "48" or "4K"</label>
+
+  <div id="progress" hidden><div class="bar"><i></i></div><div class="msg"></div></div>
+  <div id="error" hidden></div>
+
+  <div class="private">🔒 <b>Your files never leave your computer.</b> Everything runs in this browser tab; nothing is uploaded or stored.
+   (Map imagery, terrain and peak names load from public map services, like any online map. Visits are counted
+   anonymously, with no cookies.)</div>
+
+  <details class="help">
+   <summary>How do I get my tracks?</summary>
+   <ul>
+    <li><b>Strava (all at once):</b> strava.com → Settings → My Account → <i>Download or Delete Your Account</i> →
+      <i>Request your archive</i>. Strava emails a .zip within a few hours; drop the whole zip here. Big archives (hundreds of MB) work but take a minute.</li>
+    <li><b>Strava (one hike):</b> open the activity on strava.com → ⋯ menu → <i>Export GPX</i>.</li>
+    <li><b>Garmin Connect:</b> open the activity → ⚙ → <i>Export to GPX</i> (or <i>Export Original</i> for .fit).</li>
+    <li><b>AllTrails, Gaia, CalTopo, others:</b> export or download the recording as GPX.</li>
+   </ul>
+  </details>
+  <div class="foot">Summit = your track passed within 150 m of the summit. Peak list and heights from the AMC 4000 Footer Club list; summit positions from OpenStreetMap.</div>
+ </div>
+</main>
+
+<div id="app" hidden>
+ <div id="map"></div>
+ <div id="panel">
+  <div class="headRow"><h1>48 4K FOOTERS</h1><span class="headBtns"><button class="mini" id="toCard" title="Postcard of the mountain you picked">🖨 Postcard</button><button class="iconBtn" id="panelMin" title="Hide the list" aria-label="Hide the list">−</button></span></div>
+  <div class="peakNav hint" id="peakNav"><button class="iconBtn" id="mPrev" title="Previous mountain (←)">‹</button><span id="mName">Pick a mountain or tap next <span class="nudge">→</span></span><button class="iconBtn" id="mNext" title="Next mountain (→)">›</button></div>
+  <div class="sub" id="sub"></div>
+  <div class="tabs" id="tabs" hidden><button data-t="48" class="on">NH 48</button><button data-t="acts">Activities <span id="actCount"></span></button></div>
+  <div id="list"></div>
+  <div id="actsPane" hidden>
+   <div class="actFilters"><input id="actSearch" type="search" placeholder="Search activities"><select id="actType"></select></div>
+   <div class="sub" id="actSub"></div>
+   <div id="actList"></div>
+  </div>
+  <div class="panelFoot"><a href="#" id="restart">Make your own postcards →</a><a href="#" id="backMine" hidden>← Back home</a><button class="infoBtn" id="creditBtn" title="Map credits" aria-label="Map credits" aria-expanded="false">ⓘ</button></div>
+  <div class="mapCredit" id="mapCredit" hidden>Imagery: USGS · Terrain: AWS Open Data · MapLibre</div>
+ </div>
+ <div id="hint">Drag to pan · right-drag (or ctrl-drag) to tilt &amp; rotate · click a peak to fly there</div>
+</div>
+
+<div id="lightbox" hidden><img id="lbImg" alt="Photo"><button class="lbBtn" id="lbPrev" aria-label="Previous photo">‹</button><button class="lbBtn" id="lbNext" aria-label="Next photo">›</button><button class="lbBtn" id="lbClose" aria-label="Close">✕</button><div id="lbN"></div></div>
+<div id="studio">
+ <div id="controls">
+  <div class="headRow"><h2>Postcards</h2><span class="headBtns"><button class="mini" id="toMap" title="Back to the 3D map, on this mountain">⛰ 3D map</button><button class="iconBtn optBtn" id="optMin" title="Show options" aria-label="Show options">⚙</button></span></div>
+  <label class="lab only48">Mountain</label>
+  <div class="pick only48"><button class="btn nav" id="prev" title="Previous">‹ Prev</button><select id="sPeak"></select><button class="btn nav" id="next" title="Next">Next ›</button></div>
+  <div class="step only48" id="step"></div>
+  <label class="lab onlyAct">Activity</label>
+  <div class="pick onlyAct"><button class="btn nav" id="aPrev" title="Newer">‹ Prev</button><select id="sAct"></select><button class="btn nav" id="aNext" title="Older">Next ›</button></div>
+  <div class="step onlyAct" id="aStep"></div>
+  <label class="lab onlyAct">View</label>
+  <div class="seg onlyAct" id="sDim"><button data-v="3d">3D terrain</button><button data-v="2d">2D map</button></div>
+  <label class="lab">Map</label>
+    <div class="seg only3d wrap" id="sBase"><button data-v="auto" class="on" title="Snow for winter outings, summer otherwise">Auto</button><button data-v="satellite">Satellite</button><button data-v="winter">Winter</button></div>
+  <div class="seg only2d" id="sMap2"><button data-v="positron" class="on">Light</button><button data-v="dark">Dark</button><button data-v="liberty">Streets</button></div>
+  <label class="lab">Size (landscape)</label>
+  <div class="seg sizeOnly" id="sSize"><button data-v="6x4" class="on">4×6</button><button data-v="7x5">5×7</button><button data-v="10x8">8×10</button></div>
+  <label class="lab">Units</label>
+  <div class="seg" id="sUnits"><button data-v="ft" class="on">Feet · miles</button><button data-v="m">Meters · km</button></div>
+  <label class="lab">Show</label>
+  <label class="chk only48"><input type="checkbox" id="sTitles" checked> Hike names next to dates</label>
+  <label class="chk only48"><input type="checkbox" id="sOther" checked> My other hikes (faint)</label>
+  <label class="chk only48"><input type="checkbox" id="sNbr" checked> Nearby 4K names</label>
+  <label class="chk only48"><input type="checkbox" id="sRank" checked> Height rank (#6 of 48)</label>
+  <label class="chk onlyAct"><input type="checkbox" id="sStats" checked> Distance, time, climb, pace</label>
+  <label class="chk onlyAct"><input type="checkbox" id="sEnds" checked> Start / finish dots</label>
+  <label class="chk"><input type="checkbox" id="sProf" checked> Elevation profile</label>
+  <label class="chk onlyAct"><input type="checkbox" id="sPeaks" checked> Peak names &amp; summits reached</label>
+  <div class="photoRow"><label class="chk"><input type="checkbox" id="sPhoto" checked> Photo</label><button class="linkBtn" id="sPhotoNext" hidden>Next photo ›</button><span id="sPhotoN"></span></div>
+  <label class="lab only3d">3D</label>
+  <div class="seg only3d" id="sTilt"><button data-v="45">Low</button><button data-v="63" class="on">Med</button><button data-v="75">High</button></div>
+  <button class="btn" id="sReset">Reset view</button>
+
+  <label class="lab" id="thisLab">This postcard</label>
+  <div class="row2 keep"><button class="btn main" id="pOne">Print</button><button class="btn" id="dOne">Download</button></div>
+  <label class="lab only48">Every peak <span id="whichCount"></span></label>
+  <div class="seg only48" id="sWhich"><button data-v="done" class="on">Climbed</button><button data-v="all">All 48</button></div>
+  <div class="row2 only48"><button class="btn" id="pAll">Print all</button><button class="btn" id="dAll">Download .zip</button></div>
+  <label class="lab only48">Grid of all 48 at poster sizes</label>
+  <div class="seg only48" id="cSize"><button data-v="6x4" class="on">4×6</button><button data-v="12x8">8×12</button><button data-v="24x16">16×24</button></div>
+  <div class="row2 only48"><button class="btn" id="pCol">Print</button><button class="btn" id="dCol">Download</button></div>
+
+  <div class="note" id="sNote">Drag the preview to frame it (right-drag to rotate). Cards render at 300 dpi; in the print
+   dialog choose the paper size shown, or "Save as PDF".</div>
+  <button class="btn" id="sClose">← Back to 3D map</button>
+ </div>
+ <div id="stage">
+  <div class="card" id="card"><div id="cardMap"></div><canvas id="cardOv"></canvas><img id="colImg" alt="All 48 postcards in a grid" hidden></div>
+  <div id="busy" hidden><div class="bar"><i></i></div><div class="msg"></div><button class="btn" id="cancel">Cancel</button></div>
+  <div class="tip">Drag to move · right-drag / ctrl-drag to rotate &amp; tilt · scroll to zoom</div>
+ </div>
+</div>
+
+<div id="printArea"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/fflate@0.8.2/umd/index.js"></script>
+<script src="app.min.js"></script>
+<script data-goatcounter="https://peakpostcards.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
