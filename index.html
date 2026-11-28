@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Peak Postcards</title>
+<meta name="description" content="Log your hikes and adventures and turn them into printable 3D postcards: upload your GPS tracks or just log the date and the peaks. Track the NH 48, NE 67, ADK 46, Colorado 14ers and state high points. Everything stays in your browser.">
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=cfedd476">
+<style id="pageSize">@page{size:6in 4in;margin:0}</style>
+</head>
+<body>
+
+<div class="manageBox" id="manageBox" role="dialog" aria-label="Your shared link" hidden>
+  <p id="manageText"></p>
+  <div class="manageBtns"><button class="btn" id="manageDelete">Delete this shared link</button><button class="mini" id="manageClose">Close</button></div>
+</div>
+
+<div class="logBox" id="logBox" role="dialog" aria-label="Log a hike" hidden>
+  <div class="shareHead"><b id="logHead">Log a hike</b><button class="iconBtn" id="logClose" aria-label="Close">×</button></div>
+  <label class="lab" for="logDate">Date</label>
+  <input type="date" id="logDate" required>
+  <label class="lab" for="logTitle">Name <span class="mut">(optional)</span></label>
+  <input id="logTitle" maxlength="80" placeholder="e.g. Franconia Ridge with Sam">
+  <label class="lab" for="logList">Peak list</label>
+  <select id="logList" class="logSel" aria-label="Peak list"></select>
+  <label class="lab" for="logSearch">Peaks on the <span id="logListName"></span></label>
+  <div class="logChosen" id="logChosen"></div>
+  <input id="logSearch" type="search" placeholder="Search peaks…" autocomplete="off">
+  <div class="logPeaks" id="logPeaks"></div>
+  <label class="lab" for="logTrack">GPS track <span class="mut">(optional: GPX, FIT or TCX)</span></label>
+  <input type="file" id="logTrack" accept=".gpx,.fit,.tcx,.gz">
+  <div class="logTrack" id="logTrackInfo" hidden></div>
+  <label class="lab" for="logPhotos">Photos <span class="mut">(optional)</span></label>
+  <input type="file" id="logPhotos" accept="image/*" multiple>
+  <div class="logThumbs" id="logThumbs"></div>
+  <div class="shareMsg" id="logMsg" role="alert"></div>
+  <div class="row2"><button class="btn main" id="logSave">Save</button><button class="btn" id="logDelete" hidden>Delete</button></div>
+  <button class="mini" id="logAnother" hidden></button>
+  <details class="logList" id="logListBox"><summary>Your logged hikes (<span id="logCount">0</span>)</summary>
+    <div id="logEntries"></div>
+    <details id="logRemoved" hidden><summary>Removed hikes &amp; activities (<span id="logRemovedCount">0</span>)</summary><div id="logRemovedList"></div></details>
+    <div class="row2"><button class="mini" id="logBackup" title="Download your log as a file, to keep or to open on another device">💾 Back up my log</button>
+      <label class="mini btnLike" title="Add the hikes from a backup file">⤒ Restore<input type="file" id="logRestore" accept=".json,application/json" hidden></label></div>
+  </details>
+</div>
+
+<main id="landing" hidden>
+ <div class="hero">
+  <a href="#" id="landingBack" class="back" hidden>← Back home</a>
+  <div class="kicker">HIKES · RUNS · RIDES · SKI DAYS · PEAK LISTS</div>
+  <h1>Log your hikes and adventures</h1>
+  <p class="lead">Upload your GPS tracks, or simply log the date and the peaks you reached. Every hike, run, ride, ski day or
+   paddle becomes a postcard ready to print: 3D terrain where it climbed, snow when it was winter, a clean 2D map where it
+   was flat, with the elevation profile and the peaks you summited. Working on a peak list (the NH 48, New England 67,
+   Adirondack 46, Colorado 14ers or the 50 state high points)? Watch it fill in, with a postcard for each peak and a
+   collage of the whole list.</p>
+
+  <div class="ways"><span class="way"><b>⬆ Upload</b> your tracks below</span><span class="wayOr">or</span>
+   <button class="btn main" id="logStart">✏️ Log a hike by date</button><span class="wayHint">no GPS needed: just the day and the peaks</span></div>
+
+  <label id="drop" tabindex="0">
+   <input type="file" id="files" multiple accept=".zip,.gpx,.fit,.tcx,.gz">
+   <div class="dropIcon">⛰</div>
+   <b>Drop your Strava export (.zip) or GPX / FIT / TCX files</b>
+   <span>or click to choose · folders of tracks work too</span>
+  </label>
+  <label class="opt"><input type="checkbox" id="titleRule"> For peak lists, only count activities whose name or description mentions one of the peaks or the list ("48", "46er", "14er"…)</label>
+
+  <div id="progress" hidden><div class="bar"><i></i></div><div class="msg"></div></div>
+  <div id="error" hidden></div>
+
+  <div class="private">🔒 <b>Your hikes stay on your device.</b> Your files and your log stay in this browser; nothing is uploaded unless you choose to share a link.
+   (Map imagery, terrain and peak names load from public map services, like any online map. Visits are counted
+   anonymously, with no cookies.)</div>
+
+  <details class="help">
+   <summary>How do I get my tracks?</summary>
+   <ul>
+    <li><b>Strava (all at once):</b> strava.com → Settings → My Account → <i>Download or Delete Your Account</i> →
+      <i>Request your archive</i>. Strava emails a .zip within a few hours; drop the whole zip here. Big archives (hundreds of MB) work but take a minute.</li>
+    <li><b>Strava (one hike):</b> open the activity on strava.com → ⋯ menu → <i>Export GPX</i>.</li>
+    <li><b>Garmin Connect:</b> open the activity → ⚙ → <i>Export to GPX</i> (or <i>Export Original</i> for .fit).</li>
+    <li><b>AllTrails, Gaia, CalTopo, others:</b> export or download the recording as GPX.</li>
+   </ul>
+  </details>
+  <div class="foot">Summit = your track passed within 150 m of the summit. Peak list and heights from the AMC 4000 Footer Club list; summit positions from OpenStreetMap.</div>
+ </div>
+</main>
+
+<div id="app" hidden>
+ <div id="map"></div>
+ <div id="panel">
+  <div class="panelTop"><a href="#" id="restart" class="topBtn">📓 Journal your own hikes →</a><a href="#" id="logLink" class="topBtn" hidden>✏️ Log a hike</a></div>
+  <div class="headRow"><h1 id="listTitle">48 4K FOOTERS</h1><span class="headBtns"><button class="mini" id="shareBtn" title="Share a link to your postcards">🔗 Share</button><button class="mini" id="toCard" title="Postcard of the mountain you picked">🖨 Postcard</button><button class="mini" id="toCollage" title="All your postcards in one collage">🖼 Collage</button><button class="iconBtn" id="panelMin" title="Hide the list" aria-label="Hide the list">−</button></span></div>
+  <div class="peakNav hint" id="peakNav"><button class="iconBtn" id="mPrev" title="Previous mountain (←)">‹</button><span id="mName">Pick a mountain or tap next <span class="nudge">→</span></span><button class="iconBtn" id="mNext" title="Next mountain (→)">›</button></div>
+  <div class="sub" id="sub"></div>
+  <div class="saveNote" id="saveNote" role="status" hidden></div>
+  <div class="sharedBar" id="sharedBar" hidden>Shared postcards, from a link. <span id="sharedExpiry"></span> <a href="#" id="shareReport">Report</a></div>
+  <div class="shareBox" id="shareBox" hidden>
+    <div class="shareHead"><b>Share your postcards</b><button class="iconBtn" id="shareClose" aria-label="Close">×</button></div>
+    <p>Makes a short link anyone can open. It stays active while people keep opening it, and is deleted after the time below without a visit. Photos have their location data removed.</p>
+    <div class="seg" id="shareDays"><button data-v="1" class="on">24 hours</button><button data-v="7">7 days</button></div>
+    <label class="chk"><input type="checkbox" id="sharePhotos" checked> Include photos (one per hike or activity, up to 24)</label>
+    <p class="shareInfo">Only share photos you took or have permission to share. Anyone viewing a link can report it, and reported links may be removed.</p>
+    <label class="chk"><input type="checkbox" id="shareRoutes"> Include my peak hike routes (the first and last 500 m of each are left out, so trailheads near home stay private)</label>
+    <div class="shareInfo" id="shareActsNote" hidden></div>
+    <div class="shareInfo" id="shareInfo"></div>
+    <label class="chk" id="shareUpdateRow" hidden><input type="checkbox" id="shareUpdate" checked> <span id="shareUpdateText"></span></label>
+    <button class="btn" id="shareCreate">Create link</button>
+    <div class="shareMsg" id="shareMsg" role="alert"></div>
+    <div id="shareResult" hidden>
+      <div class="shareInfo" id="shareResultNote"></div>
+      <div class="shareRow"><input id="shareUrl" readonly aria-label="Share link"><button class="btn" id="shareCopy">Copy link</button></div>
+      <div class="shareInfo">Private link to delete it later from any device (keep it to yourself):</div>
+      <div class="shareRow"><input id="shareManageUrl" readonly aria-label="Private delete link"><button class="btn" id="shareManageCopy">Copy</button></div>
+    </div>
+    <div class="shareInfo" id="mySharesHead" hidden>Your links</div>
+    <div id="myShares"></div>
+    <button class="mini" id="deleteAll" hidden title="Delete every link you made and everything saved in this browser">Delete all my data</button>
+    <details class="shareInfo privacy"><summary>What's stored, and how to delete it</summary>
+      A shared link stores the postcards' data and photos (location data removed) on our share service. Each link is deleted
+      automatically 24 hours or 7 days after its last visit. Delete it sooner with Delete under "Your links" or its private delete
+      link, or remove everything with "Delete all my data". No names, emails or IP addresses are kept. Lost access to this browser?
+      Your links still disappear on their own; or open one and use Report to ask for removal.
+    </details>
+  </div>
+  <select id="listPick" class="listPick" title="Which peak list" aria-label="Peak list"></select>
+  <div class="tabs" id="tabs" hidden><button data-t="48" class="on" id="listTab">NH 48</button><button data-t="acts">Activities <span id="actCount"></span></button></div>
+  <div id="list"></div>
+  <div id="actsPane" hidden>
+   <div class="actFilters"><input id="actSearch" type="search" placeholder="Search activities"><select id="actType"></select></div>
+   <div class="sub" id="actSub"></div>
+   <div id="actList"></div>
+  </div>
+  <div class="panelFoot"><a href="#" id="backMine" hidden>← Back home</a><a href="#" id="forget" hidden title="Delete the postcards saved in this browser">Forget saved data</a><button class="infoBtn" id="creditBtn" title="Map credits" aria-label="Map credits" aria-expanded="false">ⓘ</button></div>
+  <div class="mapCredit" id="mapCredit" hidden>Imagery: USGS · Terrain: AWS Open Data · MapLibre</div>
+ </div>
+ <div id="hint">Drag to pan · right-drag (or ctrl-drag) to tilt &amp; rotate · click a peak to fly there</div>
+</div>
+
+<div id="lightbox" hidden><img id="lbImg" alt="Photo"><button class="lbBtn" id="lbPrev" aria-label="Previous photo">‹</button><button class="lbBtn" id="lbNext" aria-label="Next photo">›</button><button class="lbBtn" id="lbClose" aria-label="Close">✕</button><div id="lbN"></div></div>
+<div id="studio">
+ <div id="controls">
+  <div class="headRow"><h2>Postcards</h2><span class="headBtns"><button class="mini" id="toMap" title="Back to the 3D map, on this mountain">⛰ 3D map</button><button class="iconBtn optBtn" id="optMin" title="Show options" aria-label="Show options">⚙</button></span></div>
+  <label class="lab only48">Mountain</label>
+  <div class="pick only48"><button class="btn nav" id="prev" title="Previous">‹ Prev</button><select id="sPeak"></select><button class="btn nav" id="next" title="Next">Next ›</button></div>
+  <div class="step only48" id="step"></div>
+  <label class="lab onlyAct">Activity</label>
+  <div class="pick onlyAct"><button class="btn nav" id="aPrev" title="Newer">‹ Prev</button><select id="sAct"></select><button class="btn nav" id="aNext" title="Older">Next ›</button></div>
+  <div class="step onlyAct" id="aStep"></div>
+  <label class="lab onlyAct">View</label>
+  <div class="seg onlyAct" id="sDim"><button data-v="3d">3D terrain</button><button data-v="2d">2D map</button></div>
+  <label class="lab">Map</label>
+    <div class="seg only3d wrap" id="sBase"><button data-v="auto" class="on" title="Snow for winter outings, summer otherwise">Auto</button><button data-v="satellite">Satellite</button><button data-v="winter">Winter</button></div>
+  <div class="seg only2d" id="sMap2"><button data-v="positron" class="on">Light</button><button data-v="dark">Dark</button><button data-v="liberty">Streets</button></div>
+  <label class="lab">Size (landscape)</label>
+  <div class="seg sizeOnly" id="sSize"><button data-v="6x4" class="on">4×6</button><button data-v="7x5">5×7</button><button data-v="10x8">8×10</button></div>
+  <label class="lab">Units</label>
+  <div class="seg" id="sUnits"><button data-v="ft" class="on">Feet · miles</button><button data-v="m">Meters · km</button></div>
+  <label class="lab">Show</label>
+  <label class="chk only48"><input type="checkbox" id="sTitles" checked> Hike names next to dates</label>
+  <label class="chk only48"><input type="checkbox" id="sOther" checked> My other hikes (faint)</label>
+  <label class="chk only48"><input type="checkbox" id="sNbr" checked> Nearby peak names</label>
+  <label class="chk only48"><input type="checkbox" id="sRank" checked> Height rank (<span class="listN">#6 of 48</span>)</label>
+  <label class="chk onlyAct"><input type="checkbox" id="sStats" checked> Distance, time, climb, pace</label>
+  <label class="chk onlyAct"><input type="checkbox" id="sEnds" checked> Start / finish dots</label>
+  <label class="chk"><input type="checkbox" id="sProf" checked> Elevation profile</label>
+  <label class="chk onlyAct"><input type="checkbox" id="sPeaks" checked> Peak names &amp; summits reached</label>
+  <div class="photoRow"><label class="chk"><input type="checkbox" id="sPhoto" checked> Photo</label><button class="linkBtn" id="sPhotoNext" hidden>Next photo ›</button><span id="sPhotoN"></span></div>
+  <label class="lab only3d">3D</label>
+  <div class="seg only3d" id="sTilt"><button data-v="45">Low</button><button data-v="63" class="on">Med</button><button data-v="75">High</button></div>
+  <button class="btn" id="sReset">Reset view</button>
+
+  <label class="lab" id="thisLab">This postcard</label>
+  <div class="row2 keep"><button class="btn main" id="pOne">Print</button><button class="btn" id="dOne">Download</button><button class="btn" id="shOne" title="Send this postcard with your phone's share menu">📤 Share</button></div>
+  <label class="lab only48">Every peak <span id="whichCount"></span></label>
+  <div class="seg only48" id="sWhich"><button data-v="done" class="on">Climbed</button><button data-v="all" class="listAll">All 48</button></div>
+  <div class="row2 only48"><button class="btn" id="pAll">Print all</button><button class="btn" id="dAll">Download .zip</button></div>
+  <label class="lab only48" id="gridLab">Grid of all 48 at poster sizes</label>
+  <div class="seg only48" id="cSize"><button data-v="6x4" class="on">4×6</button><button data-v="12x8">8×12</button><button data-v="24x16">16×24</button></div>
+  <div class="row2 only48"><button class="btn" id="pCol">Print</button><button class="btn" id="dCol">Download</button><button class="btn" id="shCol" title="Send the collage with your phone's share menu">📤 Share</button></div>
+
+  <div class="note" id="sNote">Drag the preview to frame it (right-drag to rotate). Cards render at 300 dpi; in the print
+   dialog choose the paper size shown, or "Save as PDF".</div>
+  <button class="btn" id="sClose">← Back to 3D map</button>
+ </div>
+ <div id="stage">
+  <div class="card" id="card"><div id="cardMap"></div><canvas id="cardOv"></canvas><img id="colImg" alt="All 48 postcards in a grid" hidden><canvas id="colBuild" hidden></canvas></div>
+  <div id="busy" hidden><div class="bar"><i></i></div><div class="msg"></div><button class="btn" id="cancel">Cancel</button></div>
+  <div class="tip">Drag to move · right-drag / ctrl-drag to rotate &amp; tilt · scroll to zoom</div>
+ </div>
+</div>
+
+<div id="printArea"></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/fflate@0.8.2/umd/index.js"></script>
+<script src="app.min.js?v=e20d4f12"></script>
+<script data-goatcounter="https://peakpostcards.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
